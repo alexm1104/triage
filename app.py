@@ -1,95 +1,125 @@
 import streamlit as st
 
-st.set_page_config(page_title="Triage IPS Santé Plus", page_icon="🏥", layout="wide")
+st.set_page_config(page_title="Triage Clinique IPS Santé Plus", page_icon="🏥", layout="wide")
 
-st.title("🏥 Assistant Triage & Facturation - IPS Santé Plus")
-st.caption("Version 2.0 : Gestion fiscale et protocoles cliniques")
+st.title("🏥 Assistant Triage Intelligent - IPS Santé Plus")
+st.caption("Intégration des Protocoles Nationaux INESSS et Ordonnances Collectives")
 
 # --- PARAMÈTRES PATIENT ---
 with st.sidebar:
     st.header("👤 Dossier Patient")
-    point_service = st.radio("Point de service", ["Jonquière", "Saint-Félicien"])
     age = st.number_input("Âge du patient", min_value=0, max_value=115, value=18)
     nouveau = st.toggle("Nouveau patient (Frais 35$)")
     st.divider()
-    st.write("Exonération de taxes active (sauf SAAQ)")
+    st.write("Facturation exonérée (sauf SAAQ)")
 
-# --- RECHERCHE PAR SYMPTÔMES ---
-st.subheader("🕵️ Symptôme ou Motif")
-recherche = st.selectbox("Sélectionnez le besoin :", [
+# --- DICTIONNAIRE DE TRIAGE (Logique INESSS) ---
+st.subheader("🕵️ Recherche par Symptômes")
+motif = st.selectbox("Sélectionnez le motif principal :", [
     "-- Choisir --",
-    "Toux / Rhume / Congestion",
-    "Mal de gorge / Difficulté à avaler",
-    "Douleur à l'oreille / Oreille bouchée",
-    "Brûlure urinaire / Envie fréquente (Femme)",
-    "Brûlure urinaire / Douleur (Homme)",
-    "Dépistage ITSS (Sans symptômes)",
-    "Plaies / Écoulements génitaux (Symptômes ITSS)",
-    "Santé Mentale (Anxiété, Sommeil, TDAH)",
-    "Lavage d'oreilles",
-    "Examen SAAQ (Formulaire conducteur)",
-    "Bilan de Santé complet"
+    "Toux / Suspicion Pneumonie ou MPOC",
+    "Mal de gorge / Pharyngite",
+    "Brûlure urinaire / Infection urinaire",
+    "Écoulement urétral (Homme)",
+    "Pertes vaginales inhabituelles",
+    "Chlamydia / Gonorrhée (Dépistage ou partenaire)",
+    "Maladie de Lyme (Piqûre de tique)",
+    "Candidose buccale (Plaques blanches)",
+    "Hypertension (HTA)",
+    "Examen SAAQ",
+    "Bilan de Santé"
 ])
 
-# --- VARIABLES DE CALCUL ---
-if recherche != "-- Choisir --":
-    trajectoire = {"prof": "", "temps": "", "prix": 0.0, "taxable": False, "note": ""}
+if motif != "-- Choisir --":
+    trajectoire = {"prof": "IPS", "temps": "30 min", "prix": 138.0, "taxable": False, "msg": ""}
+    er_redirect = False
+
+    # 1. FILTRE ROUGE UNIVERSEL (Signes de choc/détresse)
+    with st.expander("🚨 Évaluation d'urgence (À vérifier systématiquement)", expanded=True):
+        col_er1, col_er2 = st.columns(2)
+        with col_er1:
+            détresse = st.checkbox("Difficulté respiratoire sévère ou Stridor ?")
+            confusion = st.checkbox("Confusion ou altération de l'état de conscience ?")
+        with col_er2:
+            douleur_c = st.checkbox("Douleur à la poitrine (thoracique) ?")
+            choc = st.checkbox("Teint grisâtre, moite ou basse pression ?")
     
-    # FILTRE ROUGE (Toujours présent)
-    st.error("⚠️ **SÉCURITÉ :** Le patient a-t-il une difficulté respiratoire sévère ou une douleur thoracique ?")
-    alerte_vitale = st.checkbox("OUI - Signes de gravité")
+    if détresse or confusion or douleur_c or choc:
+        er_redirect = True
 
-    if alerte_vitale:
-        st.critical("🚨 **NE PAS RÉSERVER.** Diriger vers le 911 ou l'Urgence.")
+    # 2. LOGIQUE SPÉCIFIQUE PAR PROTOCOLE
     else:
-        # LOGIQUE DE TRIAGE
-        if "SAAQ" in recherche:
-            st.warning("📋 **CONDITION SAAQ :** Le patient a-t-il eu une visite médicale à la clinique dans les 2 dernières années ?")
-            visite_recente = st.radio("Visite < 2 ans ?", ["Non / Inconnu", "Oui"])
-            
-            if visite_recente == "Oui":
-                trajectoire.update({"prof": "IPS", "temps": "30 min", "prix": 160.0, "taxable": True})
+        # PNEUMONIE / MPOC
+        if "Toux" in motif:
+            st.info("Protocole OC-017 (Pneumonie) ou MPOC-EAMPOC")
+            fievre = st.checkbox("Fièvre (> 38.5°C) ou frissons ?")
+            comorbidite = st.checkbox("Comorbidité majeure (Cancer, Immunosuppression, Insuffisance cardiaque) ?")
+            if comorbidite or fievre:
+                trajectoire.update({"prof": "IPS", "temps": "45 min", "prix": 180.0})
             else:
-                st.error("❌ **IMPORTANT :** On ne peut pas remplir le formulaire si aucune visite médicale n'a eu lieu depuis 2 ans. Prévoir un Bilan de Santé avant l'examen SAAQ.")
+                trajectoire.update({"prof": "Infirmière (OC)", "temps": "30 min", "prix": 95.0})
 
-        elif "Toux" in recherche:
-            trajectoire.update({"prof": "IPS ou Infirmière", "temps": "20-30 min", "prix": 138.0})
+        # PHARYNGITE
+        elif "Gorge" in motif:
+            st.info("Protocole Pharyngite-amygdalite")
+            if st.checkbox("Difficulté sévère à avaler sa salive ou à ouvrir la bouche ?"):
+                er_redirect = True
+            else:
+                trajectoire.update({"prof": "Infirmière (Test rapide)", "temps": "20 min", "prix": 95.0})
 
-        elif "Femme" in recherche:
-            trajectoire.update({"prof": "Infirmière (OC)", "temps": "20 min", "prix": 95.0})
-
-        elif "Lavage" in recherche:
-            trajectoire.update({"prof": "Infirmière", "temps": "30 min", "prix": 40.0})
-
-        elif "Bilan" in recherche:
-            trajectoire.update({"prof": "IPS", "temps": "45-60 min", "prix": 350.0})
-
-        # --- AFFICHAGE ET CALCUL ---
-        if trajectoire["prix"] > 0:
-            st.divider()
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.success(f"### Trajectoire : {trajectoire['prof']}")
-                st.write(f"⏱️ **Durée :** {trajectoire['temps']}")
-                st.write(f"📍 **Lieu :** {point_service}")
-
-            with col2:
-                # CALCUL FINANCIER
-                base = trajectoire["prix"]
-                ouverture = 35.0 if nouveau else 0.0
-                sous_total = base + ouverture
-                
-                if trajectoire["taxable"]:
-                    taxe = sous_total * 0.14975
-                    total = sous_total + taxe
-                    label_taxe = f"Taxes (TPS/TVQ) : {taxe:.2f} $"
+        # INFECTION URINAIRE
+        elif "Infection urinaire" in motif:
+            sexe = st.radio("Sexe :", ["Femme", "Homme"])
+            if sexe == "Homme":
+                trajectoire.update({"prof": "IPS (Toujours complexe chez l'homme)", "prix": 138.0})
+            else:
+                if st.checkbox("Grossesse, fièvre ou douleur au dos ?"):
+                    trajectoire.update({"prof": "IPS (Prioritaire)", "prix": 138.0})
                 else:
-                    taxe = 0.0
-                    total = sous_total
-                    label_taxe = "Services médicaux exonérés de taxes"
+                    trajectoire.update({"prof": "Infirmière (OC)", "prix": 95.0})
 
-                st.subheader(f"Total : {total:.2f} $")
-                st.caption(f"Consultation : {base:.2f} $")
-                if nouveau: st.caption(f"Ouverture de dossier : 35.00 $")
-                st.write(f"🧾 {label_taxe}")
+        # LYME
+        elif "Lyme" in motif:
+            st.info("Prophylaxie post-exposition (PPE)")
+            tique_36h = st.checkbox("Tique attachée depuis plus de 36h ?")
+            moins_72h = st.checkbox("Piqûre survenue il y a moins de 72h ?")
+            if age >= 8 and tique_36h and moins_72h:
+                trajectoire.update({"prof": "Infirmière (OC - Doxycycline)", "prix": 95.0})
+            else:
+                trajectoire.update({"prof": "IPS", "prix": 138.0})
+
+        # SANTÉ SEXUELLE (Écoulement / Pertes / ITSS)
+        elif any(x in motif for x in ["Écoulement", "Pertes", "Chlamydia"]):
+            st.info("Protocoles ITSS / Pertes vaginales")
+            if st.checkbox("Douleur abdominale basse, fièvre ou douleur testiculaire ?"):
+                trajectoire.update({"prof": "IPS (Consultation curative)", "prix": 138.0})
+            else:
+                trajectoire.update({"prof": "Infirmière (Dépistage)", "prix": 95.0})
+
+        # HTA
+        elif "HTA" in motif:
+            if st.checkbox("Pression >= 180/110 ou symptômes (vision floue, céphalée intense) ?"):
+                er_redirect = True
+            else:
+                trajectoire.update({"prof": "Infirmière (Suivi/Ajustement)", "prix": 95.0})
+
+    # 3. AFFICHAGE FINAL
+    if er_redirect:
+        st.critical("🚨 **ACTION REQUISE : NE PAS RÉSERVER.** Diriger le patient immédiatement vers l'URGENCE ou appeler le 911.")
+    elif trajectoire["prix"] > 0:
+        st.divider()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Professionnel", trajectoire["prof"])
+        c2.metric("Temps", trajectoire["temps"])
+        
+        # Calcul financier final
+        frais_base = trajectoire["prix"]
+        f_ouverture = 35.0 if nouveau else 0.0
+        total = frais_base + f_ouverture
+        if "SAAQ" in motif:
+            total *= 1.14975
+            st.caption("Taxes incluses (Service administratif SAAQ)")
+        else:
+            st.caption("Service médical exonéré de taxes")
+
+        c3.metric("Total à payer", f"{total:.2f} $")
