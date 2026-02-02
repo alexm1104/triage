@@ -1,107 +1,109 @@
 import streamlit as st
 
 # Configuration de la page
-st.set_page_config(page_title="Triage IPS Santé Plus", page_icon="🏥", layout="centered")
+st.set_page_config(page_title="Triage Clinique IPS Santé Plus", page_icon="🏥", layout="wide")
 
-# Style personnalisé pour correspondre à une image professionnelle
+# --- STYLE ---
 st.markdown("""
     <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #004a99; color: white; }
+    .main { background-color: #f8f9fa; }
+    .stAlert { border-radius: 10px; }
+    .stMetric { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏥 Assistant de Triage - Clinique IPS Santé Plus")
-st.info("Outil d'aide à la décision pour la réception (Jonquière & Saint-Félicien)")
+st.title("🏥 Assistant de Triage Intelligent - IPS Santé Plus")
+st.caption("Outil basé sur les protocoles et ordonnances collectives de la clinique")
 
-# --- COLLECTE DES DONNÉES ---
-with st.container():
-    col1, col2 = st.columns(2)
-    with col1:
-        nom_patient = st.text_input("Nom du patient (Optionnel)")
-        point_service = st.selectbox("Point de service", ["Jonquière", "Saint-Félicien"])
-    with col2:
-        age = st.number_input("Âge du patient", min_value=0, max_value=115, value=18)
-        nouveau_patient = st.toggle("Nouveau dossier (Frais d'ouverture 35$)")
+# --- DONNÉES PATIENT ---
+with st.sidebar:
+    st.header("👤 Patient")
+    nom = st.text_input("Nom complet")
+    age = st.number_input("Âge", min_value=0, max_value=115, value=18)
+    point_service = st.radio("Lieu de consultation", ["Jonquière", "Saint-Félicien"])
+    nouveau = st.checkbox("Nouveau patient (Frais d'ouverture 35$)")
+    st.divider()
+    st.write("© Clinique IPS Santé Plus")
 
-st.subheader("Sélection du motif")
-motif = st.selectbox("Quel est le problème de santé ?", [
-    "-- Choisir un motif --",
-    "Urgence Mineure (Otite, gorge, urinaire, ITSS, infection peau)",
-    "Consultation Prolongée (Hypertension, douleur chronique, PAP test, 2 motifs)",
-    "Bilan de Santé Complet (Examen physique + Prise de sang)",
-    "TDA/H / Santé Mentale (Évaluation ou suivi)",
-    "Soins Infirmiers (Lavage d'oreilles, injection, cryothérapie)",
-    "Examen SAAQ (Conducteur)",
-    "Cardiologie (CardioSTAT ou MAPA)"
+# --- SÉLECTION DU MOTIF ---
+st.subheader("🔍 Analyse du besoin")
+motif = st.selectbox("Sélectionnez le motif principal :", [
+    "-- Choisir --",
+    "Urgence Mineure (Otite, gorge, urinaire, etc.)",
+    "Toux / Suspicion Pneumonie (Protocole OC-017)",
+    "Consultation Prolongée (Suivi complexe, PAP test)",
+    "Bilan de Santé Complet",
+    "Santé Mentale (Suivi/Renouvellement)",
+    "Soins Infirmiers (Lavage d'oreilles, injection)",
+    "Cardiologie (CardioSTAT / MAPA)"
 ])
 
-# --- ALGORITHME DE TRIAGE ---
-if motif != "-- Choisir un motif --":
-    trajectoire = ""
-    prof = ""
-    temps = ""
-    prix_base = 0.0
-    alerte = ""
-
-    if "Urgence Mineure" in motif:
-        trajectoire, prof, temps, prix_base = "Aiguë", "IPS ou Infirmière", "20-30 min", 138.0
+# --- LOGIQUE CLINIQUE ET TARIFICATION ---
+if motif != "-- Choisir --":
+    trajectoire = {"prof": "À déterminer", "temps": "--", "prix": 0.0, "note": ""}
     
+    # 1. Cas spécifique : Pneumonie (Basé sur OC-017) 
+    if "Pneumonie" in motif:
+        st.warning("⚠️ **VÉRIFICATION DES CONTRE-INDICATIONS (OC-017)**")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            moins_14 = age < 14
+            grossesse = st.checkbox("Grossesse ou allaitement")
+            immuno = st.checkbox("Immunosuppression / Cancer / VIH")
+        with col_c2:
+            détresse = st.checkbox("Détresse respiratoire ou Confusion")
+            bp = st.checkbox("Basse pression (TAS < 90 ou TAD < 60)")
+
+        if moins_14 or grossesse or immuno or détresse or bp:
+            st.error("❌ **CONTRE-INDICATION DÉCELÉE** : Ce patient ne peut être vu par l'infirmière sous l'ordonnance collective OC-017. Référer immédiatement à l'IPS ou à l'urgence.")
+        else:
+            st.success("✅ Éligible à l'évaluation infirmière (OC-017)")
+            trajectoire.update({"prof": "Infirmière clinicienne", "temps": "30-45 min", "prix": 95.0, "note": "Appliquer le protocole d'appréciation physique."})
+
+    # 2. Urgence Mineure 
+    elif "Urgence Mineure" in motif:
+        trajectoire.update({"prof": "IPS ou Infirmière", "temps": "20-30 min", "prix": 138.0, "note": "Infection urinaire, otite, gorge, ITSS."})
+
+    # 3. Consultation Prolongée 
     elif "Consultation Prolongée" in motif:
-        trajectoire, prof, temps, prix_base = "Complexe", "IPS", "45 min", 180.0
-    
-    elif "Bilan de Santé" in motif:
-        trajectoire, prof, temps, prix_base = "Préventive", "IPS", "45-60 min", 350.0
-    
-    elif "TDA/H" in motif:
-        if age < 18:
-            alerte = "❌ ERREUR : L'IPSSM ne voit que la clientèle ADULTE. Rediriger vers le public ou pédiatrie."
-        else:
-            trajectoire, prof, temps, prix_base = "Santé Mentale", "IPSSM (Télémédecine)", "60 min", 250.0
-            
-    elif "Soins Infirmiers" in motif:
-        trajectoire, prof, temps, prix_base = "Technique", "Infirmière", "30 min", 40.0
-        
-    elif "SAAQ" in motif:
-        trajectoire, prof, temps, prix_base = "Administrative", "IPS", "30 min", 160.0
-        
-    elif "Cardiologie" in motif:
-        type_cardio = st.radio("Type de test", ["CardioSTAT (ECG)", "MAPA (Pression)"])
-        if "CardioSTAT" in type_cardio:
-            trajectoire, prof, temps, prix_base = "Spécialisée", "IPS + Cardiologue", "Varie", 507.0
-        else:
-            trajectoire, prof, temps, prix_base = "Spécialisée", "Infirmière", "20 min", 60.0
+        trajectoire.update({"prof": "IPS", "temps": "45 min", "prix": 180.0, "note": "Hypertension, MPOC, PAP test, douleur chronique."})
 
-    # --- AFFICHAGE DES RÉSULTATS ---
-    if alerte:
-        st.error(alerte)
-    else:
+    # 4. Santé Mentale 
+    elif "Santé Mentale" in motif:
+        st.info("ℹ️ Rappel : L'IPS peut renouveler si l'état est stable. Pas de nouveau diagnostic TDAH.")
+        trajectoire.update({"prof": "IPS", "temps": "30 min", "prix": 138.0})
+
+    # 5. Soins Infirmiers [cite: 12, 16]
+    elif "Soins Infirmiers" in motif:
+        type_soin = st.selectbox("Type de soin :", ["Lavage d'oreilles", "Injection de médicament", "Cryothérapie"])
+        prix_soin = 40.0 if "Cryothérapie" not in type_soin else 50.0
+        trajectoire.update({"prof": "Infirmière", "temps": "30 min", "prix": prix_soin})
+
+    # 6. Bilan de Santé 
+    elif "Bilan de Santé" in motif:
+        trajectoire.update({"prof": "IPS", "temps": "45-60 min", "prix": 350.0, "note": "Examen physique complet + prélèvements."})
+
+    # --- AFFICHAGE DU RÉSULTAT FINAL ---
+    if trajectoire["prix"] > 0:
         st.divider()
-        st.subheader("📋 Résultat pour la secrétaire")
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Professionnel", prof)
-        c2.metric("Durée à bloquer", temps)
-        c3.metric("Trajectoire", trajectoire)
+        res_col1, res_col2, res_col3 = st.columns(3)
+        with res_col1:
+            st.metric("Professionnel", trajectoire["prof"])
+        with res_col2:
+            st.metric("Durée", trajectoire["temps"])
+        with res_col3:
+            st.metric("Point de service", point_service)
 
         # Calcul financier
-        frais_ouverture = 35.0 if nouveau_patient else 0.0
-        sous_total = prix_base + frais_ouverture
-        tps = sous_total * 0.05
-        tvq = sous_total * 0.09975
-        total = sous_total + tps + tvq
+        frais_base = trajectoire["prix"]
+        f_ouverture = 35.0 if nouveau else 0.0
+        total_ht = frais_base + f_ouverture
+        taxes = total_ht * 0.14975
+        total_ttc = total_ht + taxes
 
-        st.markdown(f"""
-        **Détails de la facturation :**
-        * Consultation : {prix_base:.2f}$
-        * Frais d'ouverture : {frais_ouverture:.2f}$
-        * Taxes (TPS/TVQ) : {(tps+tvq):.2f}$
-        
-        ### **TOTAL À PAYER : {total:.2f} $**
-        """)
-        
-        if point_service == "Saint-Félicien":
-            st.warning("📍 Note : Nouveau point de service. Rappeler l'adresse au patient.")
-
-st.sidebar.markdown("---")
-st.sidebar.write("Propriété de Clinique IPS Santé Plus © 2026")
+        st.success(f"### TOTAL À PAYER : {total_ttc:.2f} $")
+        with st.expander("Détails du calcul"):
+            st.write(f"Consultation : {frais_base:.2f} $")
+            if nouveau: st.write(f"Ouverture de dossier : {f_ouverture:.2f} $")
+            st.write(f"Taxes (TPS/TVQ) : {taxes:.2f} $")
+            if trajectoire["note"]: st.caption(f"Note : {trajectoire['note']}")
