@@ -107,10 +107,49 @@ if recherche != "-- Choisir un motif --":
             else:
                 trajectoire.update({"prof": "IPS", "prix": 138.0})
 
-        # --- ADMINISTRATIF & SAAQ ---
+      # --- ADMINISTRATIF & SAAQ ---
         elif "SAAQ" in recherche:
             visite = st.radio("Visite médicale à la clinique dans les 2 dernières années ?", ["Non", "Oui"])
             if visite == "Oui":
                 trajectoire.update({"prof": "IPS", "prix": 160.0, "taxable": True})
             else:
-                st.error("❌ Action : Le patient doit d'abord passer
+                # Cette ligne doit rester sur UNE SEULE ligne
+                st.error("❌ Action : Le patient doit d'abord passer un Bilan de Santé (pas de visite < 2 ans).")
+                trajectoire["prix"] = 0
+
+        elif "Bilan" in recherche:
+            trajectoire.update({"prof": "IPS", "temps": "45-60 min", "prix": 350.0})
+
+        elif "Mentale" in recherche:
+            if age < 18:
+                st.warning("⚠️ Nous ne traitons pas la santé mentale pédiatrique. Référer au public.")
+                trajectoire["prix"] = 0
+            else:
+                trajectoire.update({"prof": "IPS", "temps": "45 min", "prix": 180.0})
+
+    # 3. AFFICHAGE DES RÉSULTATS ET FACTURATION
+    if er_redirect:
+        st.error(f"🚨 **ORIENTATION : URGENCE HOSPITALIÈRE.** {trajectoire['note']}")
+        st.write("Ne pas prendre de rendez-vous. Si le patient est au téléphone, lui dire de raccrocher et de composer le 911.")
+    elif trajectoire["prix"] > 0:
+        st.divider()
+        st.success(f"### Trajectoire recommandée : {trajectoire['prof']}")
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Durée à bloquer", trajectoire["temps"])
+        
+        # Calcul financier final
+        base = trajectoire["prix"]
+        ouverture = 35.0 if nouveau else 0.0
+        sous_total = base + ouverture
+        
+        if trajectoire["taxable"]:
+            total = sous_total * 1.14975
+            taxe_aff = f"Incluant {(sous_total * 0.14975):.2f} $ de taxes (SAAQ)"
+        else:
+            total = sous_total
+            taxe_aff = "Service médical exonéré de taxes"
+
+        c2.metric("Total à payer", f"{total:.2f} $")
+        c3.write(f"🧾 {taxe_aff}")
+        if trajectoire["note"]: st.info(f"💡 {trajectoire['note']}")
