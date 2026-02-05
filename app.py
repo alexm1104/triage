@@ -1,6 +1,6 @@
 import streamlit as st
 
-# 1. Configuration et Uniformisation de la police
+# Configuration et Uniformisation de la police
 st.set_page_config(page_title="Triage Clinique IPS Santé Plus", layout="wide")
 
 st.markdown("""
@@ -8,6 +8,7 @@ st.markdown("""
     html, body, [class*="css"], [class*="st-"] {
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
     }
+    .stExpander { border: 1px solid #e6e9ef; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -51,27 +52,23 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                 else:
                     est_tda = "tda" in recherche or "tdah" in recherche
                     
-                    # Liste des 11 points (3.a.iv)
-                    points = [
-                        "1. Téléconsultation avec l’IPSSM d’une durée de 50 min.",
-                        "2. Approche personnalisée selon votre condition.",
-                        "3. Validation des antécédents personnels et familiaux.",
-                        "4. Demande les investigations nécessaires (tests, etc.).",
-                        "5. Pose les diagnostics.",
-                        "6. Prescrit et ajuste la médication au besoin.",
-                        "7. Donne des arrêts de travail si nécessaire.",
-                        "8. Coût de 250$ pour la première consultation (Santé Mentale Générale).",
-                        "9. Si nécessaire, les suivis sont de 20 min à 195$.",
-                        "10. Un dépôt de 100$ est demandé avant la prise de rendez-vous.",
-                        "11. Vous recevrez un courriel de Telus Santé avec le lien de connexion."
-                    ]
+                    # Reconstruction de la liste sans les points 1 et 8 si TDA
+                    points_list = []
+                    if not est_tda: points_list.append("1. Téléconsultation avec l’IPSSM d’une durée de 50 min.")
+                    points_list.append("2. Approche personnalisée selon votre condition.")
+                    points_list.append("3. Validation des antécédents personnels et familiaux.")
+                    points_list.append("4. Demande les investigations nécessaires (tests, etc.).")
+                    points_list.append("5. Pose les diagnostics.")
+                    points_list.append("6. Prescrit et ajuste la médication au besoin.")
+                    points_list.append("7. Donne des arrêts de travail si nécessaire.")
+                    if not est_tda: points_list.append("8. Coût de 250$ pour la première consultation (Santé Mentale Générale).")
+                    points_list.append("9. Si nécessaire, les suivis sont de 20 min à 195$.")
+                    points_list.append("10. Un dépôt de 100$ est demandé avant la prise de rendez-vous.")
+                    points_list.append("11. Vous recevrez un courriel de Telus Santé avec le lien de connexion.")
 
                     with st.expander("📝 Informations obligatoires (IPSSM)", expanded=True):
-                        for i, p in enumerate(points):
-                            # Retirer points 1 (index 0) et 8 (index 7) pour TDA/TDAH
-                            if est_tda and i in [0, 7]:
-                                continue
-                            st.write(p)
+                        # On regroupe tout en une seule chaîne de caractères pour éviter les flèches
+                        st.markdown("\n".join(points_list))
 
                     if est_tda:
                         st.success("✅ **Protocole TDA/TDAH (2 étapes)**")
@@ -102,20 +99,21 @@ if privé and pas_medecin and lieu != "-- Choisir --":
             msg_frais_ouv = " (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
             
             script = f"""
-            > **Script de fin à lire au patient :**
-            > "La durée de votre rendez-vous sera de **{t['temps']}**. 
-            > Notez que nous ne traiterons que le problème mentionné; tout ajout supplémentaire peut entraîner des frais.
-            > 
-            > **Frais et Annulation :**
-            > * Le coût de cette consultation est de **{total_facture:.2f} $**{msg_frais_ouv}.
-            > * Un dépôt de **{t['depot']:.2f} $** est requis lors de la prise de rendez-vous avec l'IPSSM.
-            > * Notre politique d'annulation est de **{t['annul']}**. En cas d'absence ou d'annulation tardive, **50% des frais** seront chargés à votre dossier.
-            > 
-            > **Ponctualité :**
-            > * Veuillez vous connecter (ou vous présenter) **5 à 10 minutes à l'avance**. 
-            > * Un retard de **10 minutes** est considéré comme une absence."
+            **Script de fin à lire au patient :**
+            
+            "La durée de votre rendez-vous sera de **{t['temps']}**. 
+            Notez que nous ne traiterons que le problème mentionné; tout ajout supplémentaire peut entraîner des frais.
+            
+            **Frais et Annulation :**
+            * Le coût de cette consultation est de **{total_facture:.2f} $**{msg_frais_ouv}.
+            * Un dépôt de **{t['depot']:.2f} $** est requis lors de la prise de rendez-vous avec l'IPSSM.
+            * Notre politique d'annulation est de **{t['annul']}**. En cas d'absence ou d'annulation tardive, **50% des frais** seront chargés à votre dossier.
+            
+            **Ponctualité :**
+            * Veuillez vous connecter (ou vous présenter) **5 à 10 minutes à l'avance**. 
+            * Un retard de **10 minutes** est considéré comme une absence."
             """
-            st.markdown(script)
+            st.info(script)
 
 else:
     st.info("Veuillez valider l'accueil et les divulgations pour débloquer le triage.")
