@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st
 
 # 1. Configuration et Uniformisation de la police
 st.set_page_config(page_title="Triage Clinique IPS Santé Plus", layout="wide")
@@ -32,10 +32,11 @@ if privé and pas_medecin and lieu != "-- Choisir --":
     recherche = st.text_input("Quels sont vos symptômes ?").lower()
 
     if recherche:
+        # Initialisation des paramètres par défaut
         t = {"prof": "IPS", "temps": "30 min", "prix": 0.0, "depot": 0.0, "annul": "48h", "note": "", "est_sm": False, "prix_ipssm": 0.0}
         frais_ouv = 35.0 if dossier == "Non" else 0.0
         
-        # --- MODULE SANTÉ MENTALE ---
+        # --- MODULE SANTÉ MENTALE (SM) ---
         sm_keywords = ["mentale", "anxiété", "dépression", "sommeil", "alimentaire", "burnout", "deuil", "séparation", "épuisement", "tda", "tdah"]
         
         if any(x in recherche for x in sm_keywords):
@@ -52,7 +53,7 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                 else:
                     est_tda = "tda" in recherche or "tdah" in recherche
                     
-                    # Liste des 12 points (Inclusion de l'avis sur le questionnaire)
+                    # Liste des 12 points (Incluant le questionnaire au point 12)
                     points = [
                         "1. Téléconsultation avec l’IPSSM d’une durée de 50 min.",
                         "2. Approche personnalisée selon votre condition.",
@@ -71,13 +72,14 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                     with st.expander("📝 Informations obligatoires (IPSSM)", expanded=True):
                         points_a_afficher = []
                         for i, p in enumerate(points):
-                            # Retirer points 1 et 8 pour TDA/TDAH
+                            # Retirer points 1 (index 0) et 8 (index 7) pour TDA/TDAH
                             if est_tda and (i == 0 or i == 7):
                                 continue
                             points_a_afficher.append(p)
                         st.markdown("\n".join(points_a_afficher))
 
                     if est_tda:
+                        st.success("✅ **Protocole TDA/TDAH (2 étapes)**")
                         t.update({
                             "prof": "Infirmière (1h) + IPSSM (50min)",
                             "temps": "1h (Inf) et 50min (IPSSM)",
@@ -88,6 +90,7 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                             "note": "Le processus TDA/H se fait en 2 étapes : une rencontre avec l'infirmière (195$), puis une avec l'IPSSM (250$)."
                         })
                     else:
+                        st.success("✅ **Protocole Santé Mentale Générale**")
                         t.update({
                             "prof": "IPSSM (Télémédecine)",
                             "temps": "50 min",
@@ -104,11 +107,13 @@ if privé and pas_medecin and lieu != "-- Choisir --":
             total_facture = t["prix"] + frais_ouv
             msg_frais_ouv = " (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
             
+            # Logique de paiement (CC téléphone pour SM, sinon selon le site)
             if t["est_sm"]:
                 paiement = "**par téléphone par carte de crédit seulement**"
             else:
                 paiement = "carte débit, carte de crédit ou argent comptant" if lieu == "Jonquière" else "carte débit ou carte de crédit seulement"
             
+            # Détail du prix (TDA vs Général)
             if "Infirmière" in t["prof"]:
                 detail_prix = f"Le coût de la première consultation avec l'infirmière est de **{total_facture:.2f} $**{msg_frais_ouv}. La consultation suivante avec l'IPSSM est de **{t['prix_ipssm']:.2f} $**."
             else:
