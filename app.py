@@ -33,7 +33,7 @@ if privé and pas_medecin and lieu != "-- Choisir --":
             # 1. Sécurité et Âge
             st.error("🚨 SÉCURITÉ : Avez-vous des intentions de faire du mal à vous ou à autrui ?")
             if st.radio("Réponse sécurité :", ["Non", "Oui"]) == "Oui":
-                st.critical("URGENCE : Composez le 911 ou allez à l'hôpital.")
+                st.error("URGENCE : Composez le 911 ou allez à l'hôpital.")
             elif st.number_input("Âge :", 0, 115, 18) < 18:
                 st.warning("Désolé, nous ne voyons que les adultes (18+) en santé mentale.")
             else:
