@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 
 # 1. Configuration et Uniformisation de la police
 st.set_page_config(page_title="Triage Clinique IPS Santé Plus", layout="wide")
@@ -52,7 +52,7 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                 else:
                     est_tda = "tda" in recherche or "tdah" in recherche
                     
-                    # Liste des 11 points (Sauf 1 et 8 pour TDA/TDAH)
+                    # Liste des 12 points (Inclusion de l'avis sur le questionnaire)
                     points = [
                         "1. Téléconsultation avec l’IPSSM d’une durée de 50 min.",
                         "2. Approche personnalisée selon votre condition.",
@@ -64,12 +64,14 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                         "8. Coût de 250$ pour la première consultation.",
                         "9. Si nécessaire, les suivis sont de 20 min à 195$.",
                         "10. Un dépôt de 100$ est demandé avant la prise de rendez-vous.",
-                        "11. Vous recevrez un courriel de Telus Santé avec le lien de connexion."
+                        "11. Vous recevrez un courriel de Telus Santé avec le lien de connexion.",
+                        "12. Un questionnaire vous sera envoyé par courriel et doit être rempli avant le rendez-vous."
                     ]
 
                     with st.expander("📝 Informations obligatoires (IPSSM)", expanded=True):
                         points_a_afficher = []
                         for i, p in enumerate(points):
+                            # Retirer points 1 et 8 pour TDA/TDAH
                             if est_tda and (i == 0 or i == 7):
                                 continue
                             points_a_afficher.append(p)
@@ -79,11 +81,11 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                         t.update({
                             "prof": "Infirmière (1h) + IPSSM (50min)",
                             "temps": "1h (Inf) et 50min (IPSSM)",
-                            "prix": 195.0, # Prix rencontre infirmière
-                            "prix_ipssm": 250.0, # Prix IPSSM
+                            "prix": 195.0, # Infirmière
+                            "prix_ipssm": 250.0, # IPSSM
                             "depot": 100.0,
                             "annul": "72h",
-                            "note": "Le processus TDA/H se fait en 2 étapes : une rencontre avec l'infirmière, puis une avec l'IPSSM."
+                            "note": "Le processus TDA/H se fait en 2 étapes : une rencontre avec l'infirmière (195$), puis une avec l'IPSSM (250$)."
                         })
                     else:
                         t.update({
@@ -102,13 +104,11 @@ if privé and pas_medecin and lieu != "-- Choisir --":
             total_facture = t["prix"] + frais_ouv
             msg_frais_ouv = " (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
             
-            # Logique de paiement
             if t["est_sm"]:
                 paiement = "**par téléphone par carte de crédit seulement**"
             else:
                 paiement = "carte débit, carte de crédit ou argent comptant" if lieu == "Jonquière" else "carte débit ou carte de crédit seulement"
             
-            # Construction du message de prix selon le type (TDA vs Général)
             if "Infirmière" in t["prof"]:
                 detail_prix = f"Le coût de la première consultation avec l'infirmière est de **{total_facture:.2f} $**{msg_frais_ouv}. La consultation suivante avec l'IPSSM est de **{t['prix_ipssm']:.2f} $**."
             else:
@@ -131,8 +131,6 @@ if privé and pas_medecin and lieu != "-- Choisir --":
             * Un retard de **10 minutes** est considéré comme une absence."
             """
             st.info(script)
-            if t["est_sm"]:
-                st.write("📩 **Action secrétaire :** Faire parvenir le questionnaire à remplir avant le rendez-vous.")
 
 else:
     st.info("Veuillez valider l'accueil et les divulgations pour débloquer le triage.")
