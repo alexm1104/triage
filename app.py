@@ -1,89 +1,73 @@
 import streamlit as st
 
-# Configuration de l'application
-st.set_page_config(page_title="Triage IPS Santé Plus", page_icon="🏥", layout="wide")
+st.set_page_config(page_title="Triage Clinique IPS Santé Plus", layout="wide")
 
-st.title("🏥 Assistant Triage & Gestion - IPS Santé Plus")
+st.title("🏥 Assistant Triage - Clinique IPS Santé Plus")
 
-# --- ÉTAPE 1 : IDENTIFICATION (En haut de la page pour bloquer la suite) ---
-st.subheader("1️⃣ Accueil")
-col_id1, col_id2 = st.columns(2)
-with col_id1:
-    pt_service = st.selectbox("Clinique :", ["-- Sélectionner --", "Jonquière", "Saint-Félicien"])
-with col_id2:
-    statut_dossier = st.selectbox("Dossier existant ?", ["-- Sélectionner --", "Oui", "Non"])
+# --- ÉTAPE 1 : IDENTIFICATION & DIVULGATION ---
+st.subheader("1️⃣ Accueil et Informations Légales")
+col_adm1, col_adm2 = st.columns(2)
 
-if pt_service != "-- Sélectionner --" and statut_dossier != "-- Sélectionner --":
+with col_adm1:
+    dossier = st.radio("Avez-vous un dossier à la clinique ?", ["Oui", "Non"])
+    privé = st.toggle("Le patient comprend que les examens sont à ses frais ?")
+    pas_medecin = st.toggle("Le patient comprend qu'il n'y a PAS de médecin (IPS/Inf seulement) ?")
+
+with col_adm2:
+    lieu = st.selectbox("Clinique visée :", ["-- Choisir --", "Jonquière", "Saint-Félicien"])
+
+# Bloquer la suite tant que l'accueil n'est pas validé
+if privé and pas_medecin and lieu != "-- Choisir --":
+    st.divider()
     
-    # Création des onglets pour organiser le travail de la secrétaire
-    tab1, tab2, tab3 = st.tabs(["🔍 Triage Clinique", "💰 Facturation", "📋 Checklist & Script"])
+    # --- ÉTAPE 2 : RECHERCHE PAR MOTS-CLÉS ---
+    st.subheader("2️⃣ Analyse du besoin")
+    recherche = st.text_input("Quels sont vos symptômes ? (Boîte de recherche)").lower()
 
-    with tab1:
-        st.subheader("Analyse du besoin")
-        recherche = st.text_input("Tapez le symptôme (ex: oreille, urine, mentale, bilan) :").lower()
-        
-        # Initialisation des variables de trajectoire
-        t = {"prof": "À déterminer", "prix": 0.0, "delai_annul": "24h", "note": ""}
-        redir_er = False
+    if recherche:
+        t = {"prof": "IPS", "temps": 0, "prix": 0.0, "depot": 0.0, "annul": "48h", "note": ""}
+        frais_ouv = 35.0 if dossier == "Non" else 0.0
 
-        if recherche:
-            # LOGIQUE DE TRIAGE (Exemple condensé avec vos règles)
-            if any(x in recherche for x in ["mentale", "hormonal", "bilan", "métabolique"]):
-                t.update({"prof": "IPS / Spécialisé", "prix": 350.0, "delai_annul": "72h"})
-                if "mentale" in recherche: t["note"] = "Télémédecine (18 ans +)."
+        # --- MODULE SANTÉ MENTALE ---
+        if any(x in recherche for x in ["mentale", "anxiété", "dépression", "burnout", "sommeil", "tda"]):
+            st.warning("🚨 **Sécurité :** Avez-vous des intentions de faire du mal à vous ou à autrui ?")
+            danger = st.radio("Réponse :", ["Non", "Oui"])
             
-            elif any(x in recherche for x in ["urine", "gorge", "oreille", "toux", "lyme"]):
-                # Distinction simplifiée Infirmière vs IPS
-                if st.checkbox("Signes de complication ou critères d'exclusion IPS ?"):
-                    t.update({"prof": "IPS", "prix": 180.0, "delai_annul": "48h"})
+            if danger == "Oui":
+                st.error("🚨 ACTION : Composer le 911 ou présentez-vous à l'urgence.")
+            else:
+                age = st.number_input("Quel est votre âge ?", min_value=0, value=18)
+                if age < 18:
+                    st.error("❌ Désolé, nous ne traitons pas la clientèle de moins de 18 ans.")
                 else:
-                    t.update({"prof": "Infirmière (OC)", "prix": 140.0, "delai_annul": "24h"})
+                    if "tda" in recherche:
+                        t.update({"prof": "Infirmière (1h) + IPSSM (50min)", "temps": 110, "prix": 195.0, "depot": 100.0, "annul": "72h"})
+                        t["note"] = "Suivi par téléconsultation avec l'IPSSM."
+                    else:
+                        t.update({"prof": "IPSSM (Téléconsultation)", "temps": 50, "prix": 250.0, "depot": 100.0, "annul": "72h"})
+
+        # --- AFFICHAGE DU SCRIPT FINAL ---
+        if t["prix"] > 0:
+            st.divider()
+            st.subheader("💬 Script de fin d'appel")
             
-            elif "saaq" in recherche:
-                t.update({"prof": "IPS", "prix": 198.99, "delai_annul": "48h"})
-
-            st.success(f"Professionnel recommandé : **{t['prof']}**")
-
-    with tab2:
-        st.subheader("Détails financiers")
-        frais_ouv = 35.0 if statut_dossier == "Non" else 0.0
-        sous_total = t["prix"] + frais_ouv
-        # Note : La taxe ne s'applique que si c'est la SAAQ (donnée simplifiée ici)
-        total_final = sous_total * 1.14975 if "saaq" in recherche else sous_total
-        
-        col_f1, col_f2 = st.columns(2)
-        col_f1.metric("Total à percevoir", f"{total_final:.2f} $")
-        col_f2.write(f"**Modes de paiement acceptés :**\n* Argent\n* Débit\n* Crédit")
-
-    with tab3:
-        st.subheader("Conclusion de l'appel")
-        
-        # --- SCRIPT AUTOMATISÉ ---
-        st.info("💬 **Script à lire au patient :**")
-        script = f"""
-        "C'est confirmé pour votre rendez-vous à **{pt_service}**. 
-        Vous serez vu par notre **{t['prof']}**. 
-        
-        Le montant total est de **{total_final:.2f} $**.
-        
-        **Politiques de la clinique :**
-        * Veuillez vous présenter **10 minutes à l'avance** pour finaliser votre dossier.
-        * Notez que tout retard de plus de **10 minutes** sera considéré comme une absence.
-        * Votre délai d'annulation est de **{t['delai_annul']}**. 
-        * En cas d'annulation hors délai ou d'absence, des frais de **50% de la consultation** seront chargés lors de votre prochain passage."
-        """
-        st.markdown(script)
-
-        # --- CHECKLIST ADMINISTRATIVE ---
-        st.divider()
-        st.subheader("✅ Checklist Secrétaire")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.checkbox("A validé le mode de paiement (Argent/Débit/Crédit)")
-            st.checkbox(f"A bien mentionné le délai de {t['delai_annul']}")
-        with c2:
-            st.checkbox("A mentionné la règle du 10 min de retard")
-            st.checkbox("A mentionné les frais de 50% pour absence")
+            total_initial = t["prix"] + frais_ouv
+            
+            script = f"""
+            > "La durée de votre rendez-vous sera de **{t['temps']} minutes**[cite: 37]. 
+            > Notez que nous ne traiterons que le problème mentionné; tout ajout peut entraîner des frais[cite: 38].
+            > 
+            > **Frais et Annulation :**
+            > * Le coût est de **{total_initial:.2f} $** (un dépôt de {t['depot']}$ est requis [cite: 23, 34]).
+            > * Annulation : **{t['annul']}** d'avance, sinon 50% des frais seront chargés.
+            > 
+            > **Ponctualité :**
+            > * Veuillez vous connecter **5 à 10 minutes à l'avance**[cite: 40].
+            > * Un retard de **10 minutes** est considéré comme une absence[cite: 41].
+            """
+            st.markdown(script)
+            if "IPSSM" in t["prof"]:
+                st.info("📩 **Action :** Envoyer le questionnaire Telus Santé à remplir avant le rendez-vous[cite: 35, 42].")
 
 else:
-    st.warning("Veuillez identifier le point de service et le statut du dossier pour commencer.")
+    st.info("Veuillez valider les informations d'accueil (Privé / Pas de médecin) pour continuer.")
