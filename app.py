@@ -32,7 +32,7 @@ if privé and pas_medecin and lieu != "-- Choisir --":
     recherche = st.text_input("Quels sont vos symptômes ?").lower()
 
     if recherche:
-        t = {"prof": "IPS", "temps": "30 min", "prix": 0.0, "depot": 0.0, "annul": "48h", "note": "", "est_sm": False}
+        t = {"prof": "IPS", "temps": "30 min", "prix": 0.0, "depot": 0.0, "annul": "48h", "note": "", "est_sm": False, "prix_ipssm": 0.0}
         frais_ouv = 35.0 if dossier == "Non" else 0.0
         
         # --- MODULE SANTÉ MENTALE ---
@@ -78,11 +78,12 @@ if privé and pas_medecin and lieu != "-- Choisir --":
                     if est_tda:
                         t.update({
                             "prof": "Infirmière (1h) + IPSSM (50min)",
-                            "temps": "1h (Inf) + 50min (IPSSM)",
-                            "prix": 195.0,
+                            "temps": "1h (Inf) et 50min (IPSSM)",
+                            "prix": 195.0, # Prix rencontre infirmière
+                            "prix_ipssm": 250.0, # Prix IPSSM
                             "depot": 100.0,
                             "annul": "72h",
-                            "note": "Note : La consultation IPSSM de 50min (250$) suivra celle de l'infirmière."
+                            "note": "Le processus TDA/H se fait en 2 étapes : une rencontre avec l'infirmière, puis une avec l'IPSSM."
                         })
                     else:
                         t.update({
@@ -101,15 +102,18 @@ if privé and pas_medecin and lieu != "-- Choisir --":
             total_facture = t["prix"] + frais_ouv
             msg_frais_ouv = " (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
             
-            # --- LOGIQUE DE PAIEMENT MISE À JOUR ---
+            # Logique de paiement
             if t["est_sm"]:
                 paiement = "**par téléphone par carte de crédit seulement**"
             else:
-                if lieu == "Jonquière":
-                    paiement = "carte débit, carte de crédit ou argent comptant"
-                else:
-                    paiement = "carte débit ou carte de crédit seulement"
+                paiement = "carte débit, carte de crédit ou argent comptant" if lieu == "Jonquière" else "carte débit ou carte de crédit seulement"
             
+            # Construction du message de prix selon le type (TDA vs Général)
+            if "Infirmière" in t["prof"]:
+                detail_prix = f"Le coût de la première consultation avec l'infirmière est de **{total_facture:.2f} $**{msg_frais_ouv}. La consultation suivante avec l'IPSSM est de **{t['prix_ipssm']:.2f} $**."
+            else:
+                detail_prix = f"Le coût de cette consultation est de **{total_facture:.2f} $**{msg_frais_ouv}."
+
             script = f"""
             **Script de fin à lire au patient :**
             
@@ -117,7 +121,7 @@ if privé and pas_medecin and lieu != "-- Choisir --":
             Notez que nous ne traiterons que le problème mentionné; tout ajout supplémentaire peut entraîner des frais.
             
             **Frais et Annulation :**
-            * Le coût de cette consultation est de **{total_facture:.2f} $**{msg_frais_ouv}.
+            * {detail_prix}
             * Un dépôt de **{t['depot']:.2f} $** est requis lors de la prise de rendez-vous avec l'IPSSM.
             * Les modes de paiement acceptés pour ce service sont : {paiement}.
             * Notre politique d'annulation est de **{t['annul']}**. En cas d'absence ou d'annulation tardive, **50% des frais** seront chargés à votre dossier.
