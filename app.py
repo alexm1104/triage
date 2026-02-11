@@ -12,7 +12,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏥 Assistant Triage - Clinique IPS Santé Plus")
+st.title("🏥 Assistant Triage Expert - IPS Santé Plus")
 
 # --- ÉTAPE 1 : ACCUEIL ET DIVULGATION ---
 st.subheader("1️⃣ Accueil et Informations Légales")
@@ -30,108 +30,93 @@ with col_adm2:
 if privé and pas_medecin and lieu != "-- Choisir --":
     st.divider()
     st.subheader("2️⃣ Analyse du besoin (Recherche par mot-clé)")
-    recherche = st.text_input("Quels sont les symptômes ou le motif ?").lower()
+    recherche = st.text_input("Tapez le symptôme (ex: oreille, gorge, urine, mentale, saaq) :").lower()
 
     if recherche:
-        # Initialisation sécurisée des variables pour éviter les erreurs "NameError"
-        t = {
-            "prof": "À déterminer", 
-            "temps": "30", 
-            "prix": 0.0, 
-            "depot": 0.0, 
-            "annul": "48h", 
-            "est_sm": False, 
-            "est_tda": False, 
-            "prix_ipssm": 0.0
-        }
+        # Initialisation des variables
+        t = {"prof": "À déterminer", "temps": "30", "prix": 0.0, "depot": 0.0, "annul": "48h", "est_sm": False, "est_tda": False, "prix_ipssm": 0.0, "note": ""}
         frais_ouv = 35.0 if dossier == "Non" else 0.0
         
-        # --- LOGIQUE SANTÉ MENTALE ---
-        sm_keywords = ["mentale", "anxiété", "dépression", "sommeil", "alimentaire", "burnout", "deuil", "séparation", "épuisement", "tda", "tdah"]
-        
-        if any(x in recherche for x in sm_keywords):
+        # --- MODULE SANTÉ MENTALE (IPSSM) ---
+        if any(x in recherche for x in ["mentale", "anxiété", "dépression", "sommeil", "tda", "tdah", "burnout"]):
             t["est_sm"] = True
             t["annul"] = "72h"
-            t["est_tda"] = "tda" in recherche or "tdah" in recherche
+            t["est_tda"] = any(x in recherche for x in ["tda", "tdah"])
             
-            st.error("🚨 **SÉCURITÉ :** Avez-vous des intentions de faire du mal à vous ou à autrui actuellement ?")
+            st.error("🚨 SÉCURITÉ : Avez-vous des intentions de faire du mal à vous ou à autrui ?")
             if st.radio("Réponse :", ["Non", "Oui"]) == "Oui":
-                st.error("🚨 **ACTION :** Composez le 911 ou allez à l'urgence.")
+                st.error("🚨 ACTION : Composez le 911 ou allez à l'urgence.")
             elif st.number_input("Âge :", 0, 115, 18) < 18:
                 st.warning("Désolé, nous ne voyons que les adultes (18+) en santé mentale.")
             else:
-                # Affichage des 12 points IPSSM
                 points = [
-                    "1. Téléconsultation avec l’IPSSM d’une durée de 50 min.",
-                    "2. Approche personnalisée selon votre condition.",
-                    "3. Validation des antécédents personnels et familiaux.",
-                    "4. Demande les investigations nécessaires (tests, etc.).",
-                    "5. Pose les diagnostics.",
-                    "6. Prescrit et ajuste la médication au besoin.",
-                    "7. Donne des arrêts de travail si nécessaire.",
-                    "8. Coût de 250$ pour la première consultation.",
-                    "9. Si nécessaire, les suivis sont de 20 min à 195$.",
-                    "10. Un dépôt de 100$ est demandé avant la prise de rendez-vous.",
-                    "11. Vous recevrez un courriel de Telus Santé avec le lien de connexion.",
-                    "12. Un questionnaire vous sera envoyé par courriel et doit être rempli avant le rendez-vous."
+                    "1. Téléconsultation avec l’IPSSM d’une durée de 50 min.", "2. Approche personnalisée.", "3. Validation des antécédents.", 
+                    "4. Investigations nécessaires.", "5. Pose les diagnostics.", "6. Prescrit/ajuste médication.", 
+                    "7. Arrêts de travail si nécessaire.", "8. Coût de 250$ (1ère consult).", "9. Suivis 20 min à 195$.", 
+                    "10. Dépôt de 100$ requis.", "11. Lien Telus Santé par courriel.", "12. Questionnaire à remplir avant le RDV."
                 ]
                 with st.expander("📝 Informations obligatoires IPSSM", expanded=True):
-                    points_filtres = [p for i, p in enumerate(points) if not (t["est_tda"] and i in [0, 7])]
-                    st.markdown("\n".join(points_filtres))
+                    st.markdown("\n".join([p for i, p in enumerate(points) if not (t["est_tda"] and i in [0, 7])]))
 
                 if t["est_tda"]:
                     t.update({"prof": "Infirmière + IPSSM", "temps": "1h (Inf) + 50min (IPSSM)", "prix": 195.0, "prix_ipssm": 250.0, "depot": 100.0})
                 else:
                     t.update({"prof": "IPSSM (Télémédecine)", "temps": "50", "prix": 250.0, "depot": 100.0})
 
-        # --- LOGIQUE URGENCE MINEURE / GÉNÉRAL ---
-        else:
-            # Détermination Infirmière vs IPS (Selon votre liste)
-            inf_keywords = ["lavage", "oreille", "strep", "injection", "pansement", "soins"]
-            if any(x in recherche for x in inf_keywords):
-                t.update({"prof": "Infirmière", "prix": 140.0, "annul": "24h", "temps": "20"})
-            else:
-                t.update({"prof": "IPS", "prix": 180.0, "annul": "48h", "temps": "30"})
+        # --- MODULE OREILLE (OTITE) ---
+        elif any(x in recherche for x in ["oreille", "otite", "entendre"]):
+            st.info("👂 **Évaluation de l'oreille (Aide-mémoire : Otite)**")
+            st.markdown("**Posez les questions de gravité :**")
+            col1, col2 = st.columns(2)
+            with col1:
+                q1 = st.checkbox("Le patient a-t-il des vertiges ou des pertes d'équilibre ?")
+                q2 = st.checkbox("Y a-t-il un écoulement de pus ou de sang important ?")
+            with col2:
+                q3 = st.checkbox("La douleur fait-elle suite à un choc ou un objet inséré ?")
+                q4 = st.checkbox("Le patient fait-il de la fièvre (>38.5) depuis plus de 48h ?")
             
-            # Option Prélèvement (Jonquière seulement)
-            if lieu == "Jonquière":
-                if st.checkbox("Un prélèvement sera-t-il effectué ? (+35$)"):
-                    t["prix"] += 35.0
+            if q1 or q2 or q3 or q4:
+                t.update({"prof": "IPS (Cas complexe)", "prix": 180.0, "annul": "48h", "temps": "30", "note": "Cas d'exclusion pour l'infirmière."})
+            else:
+                t.update({"prof": "Infirmière (Otite simple)", "prix": 140.0, "annul": "24h", "temps": "20"})
 
-        # --- ÉTAPE 3 : CONCLUSION ET SCRIPT ---
+        # --- MODULE URINAIRE ---
+        elif any(x in recherche for x in ["urine", "brulure", "vessie"]):
+            st.info("💧 **Évaluation Urinaire (Aide-mémoire : Infection)**")
+            st.markdown("**Vérifiez les critères d'exclusion IPS :**")
+            if st.checkbox("Le patient est-il un Homme, une Femme enceinte ou a-t-il mal au dos + fièvre ?"):
+                t.update({"prof": "IPS", "prix": 180.0, "annul": "48h"})
+            else:
+                t.update({"prof": "Infirmière (OC-001)", "prix": 140.0, "annul": "24h"})
+
+        # --- AUTRES MOTIFS (À compléter selon la même structure) ---
+        else:
+            t.update({"prof": "IPS", "prix": 180.0, "annul": "48h", "temps": "30"})
+            if lieu == "Jonquière" and st.checkbox("Prélèvement requis ? (+35$)"):
+                t["prix"] += 35.0
+
+        # --- ÉTAPE 3 : CONCLUSION ---
         if t["prix"] > 0:
             st.divider()
-            st.subheader("3️⃣ Script de fin d'appel")
+            st.subheader("3️⃣ Conclusion de l'appel")
             
-            total_facture = t["prix"] + frais_ouv
-            msg_ouv = " (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
-            
-            # Modes de paiement
-            if t["est_sm"]:
-                paiement = "**par téléphone par carte de crédit seulement**"
-            elif lieu == "Jonquière":
-                paiement = "par carte débit, carte de crédit ou argent comptant"
-            else:
-                paiement = "par carte débit ou carte de crédit seulement"
+            total = t["prix"] + frais_ouv
+            msg_ouv = f" (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
+            paiement = "**par téléphone par carte de crédit seulement**" if t["est_sm"] else ("par débit, crédit ou argent" if lieu == "Jonquière" else "par débit ou crédit seulement")
 
-            # Détail prix spécifique TDA
             if t["est_tda"]:
-                texte_prix = f"Le coût est de **{total_facture:.2f} $**{msg_ouv} pour l'infirmière et **{t['prix_ipssm']:.2f} $** pour l'IPSSM."
+                texte_prix = f"Le coût est de **{total:.2f} $**{msg_ouv} pour l'infirmière et **250.00 $** pour l'IPSSM."
             else:
-                texte_prix = f"Le coût de la consultation est de **{total_facture:.2f} $**{msg_ouv}."
+                texte_prix = f"Le coût de la consultation est de **{total:.2f} $**{msg_ouv}."
 
             script = f"""
-            > "La durée du rendez-vous sera de **{t['temps']} minutes**. 
-            > Nous ne traiterons que votre problème mentionné; tout ajout peut entraîner des frais.
+            > **Script de fin :**
+            > "La durée de votre rendez-vous sera de **{t['temps']} minutes**. Nous ne traiterons que votre problème mentionné.
             > 
-            > **Frais et Annulation :**
             > * {texte_prix}
             > * {'Un dépôt de 100$ est requis pour l\'IPSSM.' if t['depot'] > 0 else ''}
             > * Le paiement se fera {paiement}.
-            > * Nous chargerons **50% des frais** en cas d'absence ou d'annulation moins de **{t['annul']}** à l'avance.
-            > 
-            > **Ponctualité :**
-            > * Veuillez vous {'connecter' if t['est_sm'] else 'présenter'} **5 à 10 minutes à l'avance**. 
-            > * Un retard de **10 minutes** est considéré comme une absence."
+            > * Politique d'annulation : **{t['annul']}** d'avance, sinon **50% des frais** seront chargés.
+            > * Arrivez **5 à 10 min** d'avance. Un retard de **10 min** est une absence."
             """
             st.info(script)
