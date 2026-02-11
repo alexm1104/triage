@@ -1,12 +1,14 @@
 import streamlit as st
 
-# Configuration et police uniforme
+# 1. Configuration et style
 st.set_page_config(page_title="Triage Clinique IPS Santé Plus", layout="wide")
+
 st.markdown("""
     <style>
     html, body, [class*="css"], [class*="st-"] {
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
     }
+    .stAlert { border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -17,134 +19,119 @@ st.subheader("1️⃣ Accueil et Informations Légales")
 col_adm1, col_adm2 = st.columns(2)
 
 with col_adm1:
-    # Identification du client [cite: 2-4, 8]
     dossier = st.radio("Avez-vous un dossier à la clinique ?", ["Oui", "Non"], horizontal=True)
-    frais_ouverture = 35.0 if dossier == "Non" else 0.0
-    
-    # Divulgations obligatoires [cite: 5, 6]
     privé = st.toggle("Le patient sait que c'est une CLINIQUE PRIVÉE (frais à sa charge) ?")
-    pas_medecin = st.toggle("Le patient sait qu'il n'y a PAS DE MÉDECIN (IPS et infirmière uniquement) ?")
+    pas_medecin = st.toggle("Le patient sait qu'il n'y a PAS DE MÉDECIN (IPS/Inf uniquement) ?")
 
 with col_adm2:
-    # Localisation [cite: 10-12]
     lieu = st.selectbox("Point de service :", ["-- Choisir --", "Jonquière", "Saint-Félicien"])
 
 # --- DÉBLOCAGE DU TRIAGE ---
 if privé and pas_medecin and lieu != "-- Choisir --":
     st.divider()
     st.subheader("2️⃣ Analyse du besoin (Recherche par mot-clé)")
-    # Banque de mots-clés incluant les urgences mineures et bilans [cite: 13, 38-59]
-    recherche = st.text_input("Quels sont vos symptômes ou le motif de consultation ?").lower()
+    recherche = st.text_input("Quels sont les symptômes ou le motif ?").lower()
 
     if recherche:
-        t = {"prof": "IPS", "temps": "30", "prix": 0.0, "depot": 0.0, "annul": "48h", "est_sm": False, "prix_ipssm": 0.0}
+        # Initialisation sécurisée des variables pour éviter les erreurs "NameError"
+        t = {
+            "prof": "À déterminer", 
+            "temps": "30", 
+            "prix": 0.0, 
+            "depot": 0.0, 
+            "annul": "48h", 
+            "est_sm": False, 
+            "est_tda": False, 
+            "prix_ipssm": 0.0
+        }
+        frais_ouv = 35.0 if dossier == "Non" else 0.0
         
-        # --- MODULE SANTÉ MENTALE (SM) --- [cite: 14]
+        # --- LOGIQUE SANTÉ MENTALE ---
         sm_keywords = ["mentale", "anxiété", "dépression", "sommeil", "alimentaire", "burnout", "deuil", "séparation", "épuisement", "tda", "tdah"]
         
         if any(x in recherche for x in sm_keywords):
             t["est_sm"] = True
-            t["annul"] = "72h" # 
+            t["annul"] = "72h"
+            t["est_tda"] = "tda" in recherche or "tdah" in recherche
             
-            # Sécurité immédiate [cite: 15, 16]
-            st.error("🚨 **SÉCURITÉ :** Est-ce que vous avez des intentions de faire du mal à vous ou à autrui actuellement ?")
-            danger = st.radio("Réponse du patient :", ["Non", "Oui"])
-            
-            if danger == "Oui":
-                st.error("🚨 **ACTION IMMÉDIATE :** Veuillez composer le 911 ou vous présenter directement à l’urgence.")
+            st.error("🚨 **SÉCURITÉ :** Avez-vous des intentions de faire du mal à vous ou à autrui actuellement ?")
+            if st.radio("Réponse :", ["Non", "Oui"]) == "Oui":
+                st.error("🚨 **ACTION :** Composez le 911 ou allez à l'urgence.")
+            elif st.number_input("Âge :", 0, 115, 18) < 18:
+                st.warning("Désolé, nous ne voyons que les adultes (18+) en santé mentale.")
             else:
-                # Vérification de l'âge [cite: 18-20]
-                age = st.number_input("Quel est votre âge ?", min_value=0, value=18)
-                if age < 18:
-                    st.warning("❌ Désolé, nous ne traitons pas la clientèle de moins de 18 ans.")
+                # Affichage des 12 points IPSSM
+                points = [
+                    "1. Téléconsultation avec l’IPSSM d’une durée de 50 min.",
+                    "2. Approche personnalisée selon votre condition.",
+                    "3. Validation des antécédents personnels et familiaux.",
+                    "4. Demande les investigations nécessaires (tests, etc.).",
+                    "5. Pose les diagnostics.",
+                    "6. Prescrit et ajuste la médication au besoin.",
+                    "7. Donne des arrêts de travail si nécessaire.",
+                    "8. Coût de 250$ pour la première consultation.",
+                    "9. Si nécessaire, les suivis sont de 20 min à 195$.",
+                    "10. Un dépôt de 100$ est demandé avant la prise de rendez-vous.",
+                    "11. Vous recevrez un courriel de Telus Santé avec le lien de connexion.",
+                    "12. Un questionnaire vous sera envoyé par courriel et doit être rempli avant le rendez-vous."
+                ]
+                with st.expander("📝 Informations obligatoires IPSSM", expanded=True):
+                    points_filtres = [p for i, p in enumerate(points) if not (t["est_tda"] and i in [0, 7])]
+                    st.markdown("\n".join(points_filtres))
+
+                if t["est_tda"]:
+                    t.update({"prof": "Infirmière + IPSSM", "temps": "1h (Inf) + 50min (IPSSM)", "prix": 195.0, "prix_ipssm": 250.0, "depot": 100.0})
                 else:
-                    est_tda = "tda" in recherche or "tdah" in recherche # [cite: 21]
-                    
-                    # Points d'information (1 à 12) [cite: 27-37, 66]
-                    points = [
-                        "1. Téléconsultation avec l’IPSSM d’une durée de 50 min.",
-                        "2. Approche personnalisée selon votre condition.",
-                        "3. Validation des antécédents personnels et familiaux.",
-                        "4. Demande les investigations nécessaires (tests, etc.).",
-                        "5. Pose les diagnostics.",
-                        "6. Prescrit et ajuste la médication au besoin.",
-                        "7. Donne des arrêts de travail si nécessaire.",
-                        "8. Coût de 250$ pour la première consultation.",
-                        "9. Si nécessaire, les suivis sont de 20 min à 195$.",
-                        "10. Un dépôt de 100$ est demandé avant la prise de rendez-vous.",
-                        "11. Vous recevrez un courriel de Telus Santé avec le lien de connexion.",
-                        "12. Un questionnaire vous sera envoyé par courriel et doit être rempli avant le rendez-vous."
-                    ]
+                    t.update({"prof": "IPSSM (Télémédecine)", "temps": "50", "prix": 250.0, "depot": 100.0})
 
-                    with st.expander("📝 Informations obligatoires (IPSSM)", expanded=True):
-                        for i, p in enumerate(points):
-                            # Retirer points 1 et 8 pour TDA (déjà précisés dans le script)
-                            if est_tda and (i == 0 or i == 7): continue
-                            st.write(p)
-
-                    if est_tda:
-                        st.success("✅ **Protocole TDA/TDAH (2 consultations)**") # [cite: 22]
-                        t.update({
-                            "prof": "Infirmière (1h) + IPSSM (50min)",
-                            "temps": "1h (Inf) et 50min (IPSSM)",
-                            "prix": 195.0, # Consultation infirmière [cite: 23]
-                            "prix_ipssm": 250.0, # Consultation IPSSM [cite: 24]
-                            "depot": 100.0 # [cite: 25]
-                        })
-                    else:
-                        st.success("✅ **Protocole Santé Mentale Générale**")
-                        t.update({
-                            "prof": "IPSSM (Télémédecine)",
-                            "temps": "50", # [cite: 27]
-                            "prix": 250.0, # [cite: 34]
-                            "depot": 100.0 # [cite: 36]
-                        })
-
-        # --- MODULE URGENCE MINEURE / AUTRES --- 
+        # --- LOGIQUE URGENCE MINEURE / GÉNÉRAL ---
         else:
-            # Note sur les prélèvements à Jonquière vs St-Félicien 
-            if lieu == "Jonquière":
-                st.caption("ℹ️ Si un prélèvement est requis, des frais de 35$ s'ajouteront.")
-            
-            # Exemple pour l'infirmière (à compléter avec l'aide-mémoire)
-            if any(x in recherche for x in ["lavage", "oreille", "strep"]):
+            # Détermination Infirmière vs IPS (Selon votre liste)
+            inf_keywords = ["lavage", "oreille", "strep", "injection", "pansement", "soins"]
+            if any(x in recherche for x in inf_keywords):
                 t.update({"prof": "Infirmière", "prix": 140.0, "annul": "24h", "temps": "20"})
+            else:
+                t.update({"prof": "IPS", "prix": 180.0, "annul": "48h", "temps": "30"})
+            
+            # Option Prélèvement (Jonquière seulement)
+            if lieu == "Jonquière":
+                if st.checkbox("Un prélèvement sera-t-il effectué ? (+35$)"):
+                    t["prix"] += 35.0
 
-        # --- ÉTAPE 3 : CONCLUSION ET SCRIPT --- [cite: 60]
+        # --- ÉTAPE 3 : CONCLUSION ET SCRIPT ---
         if t["prix"] > 0:
             st.divider()
-            st.subheader("3️⃣ Conclusion de l'appel")
+            st.subheader("3️⃣ Script de fin d'appel")
             
-            total_facture = t["prix"] + frais_ouverture
-            msg_frais_ouv = f" (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
+            total_facture = t["prix"] + frais_ouv
+            msg_ouv = " (incluant les frais d'ouverture de dossier de 35$)" if dossier == "Non" else ""
             
-            # Modes de paiement [cite: 67-69]
+            # Modes de paiement
             if t["est_sm"]:
-                paiement = "par téléphone par carte de crédit seulement"
+                paiement = "**par téléphone par carte de crédit seulement**"
             elif lieu == "Jonquière":
                 paiement = "par carte débit, carte de crédit ou argent comptant"
             else:
                 paiement = "par carte débit ou carte de crédit seulement"
-            
-            # Détail du prix pour TDA
-            detail_prix = f"Le coût de la consultation est de **{total_facture:.2f} $**{msg_frais_ouv}."
-            if "Infirmière" in t["prof"] and est_tda:
-                detail_prix = f"Le coût est de **{total_facture:.2f} $**{msg_frais_ouv} pour l'infirmière et **{t['prix_ipssm']:.2f} $** pour l'IPSSM."
+
+            # Détail prix spécifique TDA
+            if t["est_tda"]:
+                texte_prix = f"Le coût est de **{total_facture:.2f} $**{msg_ouv} pour l'infirmière et **{t['prix_ipssm']:.2f} $** pour l'IPSSM."
+            else:
+                texte_prix = f"Le coût de la consultation est de **{total_facture:.2f} $**{msg_ouv}."
 
             script = f"""
-            **Script de fin à lire au patient :**
-            
-            "La durée de votre rendez-vous sera de **{t['temps']} minutes**. 
-            Notez que nous ne traiterons que votre problème mentionné; tout ajout supplémentaire peut entraîner des frais. [cite: 61, 62]
-            
-            **Frais et Annulation :**
-            * {detail_prix}
-            * Un dépôt de **{t['depot']:.2f} $** est requis pour le rendez-vous IPSSM. [cite: 25, 36]
-            * Le paiement se fera **{paiement}**. [cite: 67-69]
-            * Nous chargerons **50% des frais** en cas d'absence ou d'annulation moins de **{t['annul']}** avant le rendez-vous. 
-            
-            **Ponctualité :**
-            * Veuillez vous {'connecter' if t['est_sm'] else 'présenter'} **5 à 10 minutes à l'avance**. [cite: 64]
-            * Un retard de **10 minutes** est considéré comme une absence." [cite: 65]
+            > "La durée du rendez-vous sera de **{t['temps']} minutes**. 
+            > Nous ne traiterons que votre problème mentionné; tout ajout peut entraîner des frais.
+            > 
+            > **Frais et Annulation :**
+            > * {texte_prix}
+            > * {'Un dépôt de 100$ est requis pour l\'IPSSM.' if t['depot'] > 0 else ''}
+            > * Le paiement se fera {paiement}.
+            > * Nous chargerons **50% des frais** en cas d'absence ou d'annulation moins de **{t['annul']}** à l'avance.
+            > 
+            > **Ponctualité :**
+            > * Veuillez vous {'connecter' if t['est_sm'] else 'présenter'} **5 à 10 minutes à l'avance**. 
+            > * Un retard de **10 minutes** est considéré comme une absence."
             """
             st.info(script)
